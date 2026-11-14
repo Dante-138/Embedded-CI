@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-tests:
+    name: Host tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Same compiler in CI and on the PC: image pinned by digest.
+    container:
+      image: gcc:14@sha256:a6f425a380ee03e682df3b436fc9077c544fb0fea0a9cab943c3b8320db10765
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Tests with ASan and UBSan
+        run: make test
+
+      - name: Proof that the sanitizer is on
+        run: make proof
+
+      - name: Install cppcheck
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends cppcheck
+
+      - name: Static analysis (cppcheck)
+        run: make analyze
