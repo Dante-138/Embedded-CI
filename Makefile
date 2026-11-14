@@ -27,8 +27,17 @@ LIMITS  := 64 165 255
 
 .PHONY: test proof analyze clean
 
-test: $(foreach limit,$(LIMITS),$(BUILD)/max$(limit)/test_frame)
+# Every other module is one src/<name>.c + src/<name>.h + tests/test_<name>.c
+# and is picked up here by itself: adding a module needs no change to this file.
+MODULES := $(filter-out frame,$(patsubst src/%.c,%,$(wildcard src/*.c)))
+
+test: $(foreach limit,$(LIMITS),$(BUILD)/max$(limit)/test_frame)       $(foreach module,$(MODULES),$(BUILD)/modules/test_$(module))
 	@set -e; for limit in $(LIMITS); do ./$(BUILD)/max$$limit/test_frame; done
+	@set -e; for module in $(MODULES); do ./$(BUILD)/modules/test_$$module; done
+
+$(BUILD)/modules/test_%: tests/test_%.c src/%.c src/%.h
+	mkdir -p $(@D)
+	$(CC) $(CFLAGS) $< src/$*.c -o $@
 
 # One build folder per limit, so each binary is built with its own -D.
 $(BUILD)/max%/test_frame: tests/test_frame.c $(SRC) $(HDR)
