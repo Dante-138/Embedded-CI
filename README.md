@@ -47,11 +47,18 @@ payload, sent high byte first.
   payload, and that frame is lost. Measured by the tests with 0 to 16 random
   bytes (`SOF` included) before each of 20,000 frames:
 
-  | `FRAME_MAX_PAYLOAD` | Frames lost | Worst run of lost frames | Frames delivered wrong |
+  | `FRAME_MAX_PAYLOAD` | Frames lost | Worst run of lost frames | Frames delivered wrong in this run |
   | --- | --- | --- | --- |
   | 64 | 181 (0.9%) | 4 | 0 |
   | 165 | 835 (4.2%) | 7 | 0 |
   | 255 | 1,180 (5.9%) | 7 | 0 |
+
+  The zero in the last column holds for this run (fixed seed), not in general.
+  A 16-bit CRC accepts a random false frame with a chance of about 1 in 65,536,
+  so on a long enough noisy link a frame made of noise will eventually come out
+  as `FRAME_READY`. If the application cannot accept that, it should validate
+  the payload itself (command codes, ranges, a sequence number) or use a
+  stronger check.
 
   A smaller limit loses less, because a false start swallows fewer bytes. On a
   link that is noisy and has idle gaps, calling `frame_parser_init()` on the
@@ -117,8 +124,9 @@ size_t size = frame_encode(data, data_length, out, sizeof out); /* 0 on bad argu
 - Resynchronization bound: 2,000 rounds of noise with `SOF` (half of them
   ending on a forced false start), then `FRAME_MAX_PAYLOAD + 3` bytes without
   `SOF`: the next frame always parses.
-- 20,000 frames with noise that includes `SOF`: no frame is ever delivered with
-  the wrong content, and the loss stays under 10% (table above).
+- 20,000 frames with noise that includes `SOF`: no frame delivered with the
+  wrong content in this run (see the CRC limit above), and the loss stays under
+  10% (table above).
 
 The whole suite runs three times, with `FRAME_MAX_PAYLOAD` at 64 (default), 165
 (the first value where `SOF` is also a valid `LEN`) and 255 (the largest `LEN`).

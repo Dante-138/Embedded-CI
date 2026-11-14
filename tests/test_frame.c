@@ -353,7 +353,8 @@ static void test_resync_bound_after_noise_with_sof(void)
  * Noise that may contain SOF, with no gap before the next frame. The parser
  * does not backtrack: a false SOF in the noise can make it read the start of
  * the next real frame as payload, and that frame is lost. This measures the
- * loss and checks that a frame is never delivered with the wrong content.
+ * loss and checks that, with this seed, no frame is delivered with the wrong
+ * content.
  */
 static void test_loss_with_sof_in_noise(void)
 {
@@ -403,6 +404,14 @@ static void test_loss_with_sof_in_noise(void)
 
     printf("frame: SOF in noise, limit %u: lost %u of %u frames (worst run %u in a row), %u wrong\n",
            (unsigned)FRAME_MAX_PAYLOAD, lost, (unsigned)FRAMES, worst_streak, wrong);
+    /*
+     * Zero holds for this byte sequence, not in general: CRC-16 accepts a
+     * random false frame with a chance of about 1 in 65,536. The sequence comes
+     * from one shared generator, so adding or changing another test shifts it.
+     * If this check then fails with a false frame whose CRC matches, changing
+     * the seed (rng_state) is legitimate; a frame with a CRC that does not match
+     * is a real bug.
+     */
     CHECK(wrong == 0U);
     CHECK(lost * 10U < (unsigned)FRAMES); /* regression guard: under 10% lost */
 }
