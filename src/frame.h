@@ -19,7 +19,19 @@
  *   path (main loop or a task reading a ring buffer), not from the ISR, since
  *   the CRC check runs on the last byte.
  * - Self-resynchronizing: after a bad length or a CRC mismatch the parser goes
- *   back to hunting for SOF. The caller never has to flush anything.
+ *   back to hunting for SOF. The caller never has to flush anything. Whatever
+ *   state noise leaves it in, at most FRAME_MAX_PAYLOAD + 3 bytes without SOF
+ *   bring it back to hunting.
+ * - No backtracking: bytes already consumed are not rescanned. A false SOF in
+ *   line noise can make the parser read the start of the next real frame as
+ *   payload, and that frame is lost (reported as FRAME_ERROR_CRC or
+ *   FRAME_ERROR_LENGTH). The cost is lower with a smaller FRAME_MAX_PAYLOAD,
+ *   since a false start swallows fewer bytes. The upside: O(1) memory and no
+ *   second buffer.
+ * - A repeated SOF (SOF where LEN was expected) is taken as a new start, so a
+ *   stray SOF just before a real frame does not cost that frame. This only
+ *   applies while FRAME_MAX_PAYLOAD < 0xA5: from 0xA5 up, SOF is also a valid
+ *   LEN and is read as one.
  * - No timing inside: if the link has an inter-byte timeout (UART idle line),
  *   call frame_parser_init() when it fires to drop a half-received frame.
  */

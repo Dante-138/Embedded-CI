@@ -63,7 +63,8 @@ frame_status_t frame_parser_feed(frame_parser_t *parser, uint8_t byte)
             /*
              * A second SOF right after the first (the real LEN was lost or
              * the first SOF was noise) is treated as a new start instead of
-             * an error, so the frame that follows is not lost.
+             * an error, so the frame that follows is not lost. Only reachable
+             * while FRAME_MAX_PAYLOAD < FRAME_SOF; above that SOF is a valid LEN.
              */
             if (byte == FRAME_SOF) {
                 return FRAME_PENDING;

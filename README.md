@@ -16,7 +16,7 @@ Every module follows the same rules:
 
 | Module | What it does | Problem it solves | How it is tested |
 | --- | --- | --- | --- |
-| [`frame`](src/frame.h) | Byte-by-byte parser and encoder for a serial frame: `SOF`, `LEN`, payload, CRC-16 | Lost or misaligned frames on a UART link, and code that needs a flush or reset after line noise | 14 host tests (below) with ASan + UBSan, plus cppcheck |
+| [`frame`](src/frame.h) | Byte-by-byte parser and encoder for a serial frame: `SOF`, `LEN`, payload, CRC-16 | Lost or misaligned frames on a UART link, and code that needs a flush or reset after line noise | 16 host tests (below) with ASan + UBSan at three payload limits, plus cppcheck |
 
 ## frame
 
@@ -37,8 +37,25 @@ payload, sent high byte first.
 - One byte in, one status out: `FRAME_PENDING`, `FRAME_READY`,
   `FRAME_ERROR_LENGTH` or `FRAME_ERROR_CRC`.
 - Resynchronizes by itself: after any error it goes back to hunting for `SOF`.
-  A repeated `SOF` is taken as a new start, so a stray `SOF` before a real frame
-  does not cost that frame.
+  Whatever state noise leaves it in, at most `FRAME_MAX_PAYLOAD + 3` bytes
+  without `SOF` bring it back to hunting.
+- A repeated `SOF` is taken as a new start, so a stray `SOF` before a real frame
+  does not cost that frame. This applies only while `FRAME_MAX_PAYLOAD < 0xA5`;
+  from `0xA5` up, `SOF` is also a valid `LEN` and is read as one.
+- No backtracking, by design (O(1) memory, no second buffer): a false `SOF` in
+  line noise can make the parser read the start of the next real frame as
+  payload, and that frame is lost. Measured by the tests with 0 to 16 random
+  bytes (`SOF` included) before each of 20,000 frames:
+
+  | `FRAME_MAX_PAYLOAD` | Frames lost | Worst run of lost frames | Frames delivered wrong |
+  | --- | --- | --- | --- |
+  | 64 | 181 (0.9%) | 4 | 0 |
+  | 165 | 835 (4.2%) | 7 | 0 |
+  | 255 | 1,180 (5.9%) | 7 | 0 |
+
+  A smaller limit loses less, because a false start swallows fewer bytes. On a
+  link that is noisy and has idle gaps, calling `frame_parser_init()` on the
+  idle timeout drops a false start early.
 - No timing inside: if the link has an idle timeout, call `frame_parser_init()`
   when it fires to drop a half-received frame.
 - The payload pointer is valid only right after `FRAME_READY`, until the next
@@ -95,8 +112,16 @@ size_t size = frame_encode(data, data_length, out, sizeof out); /* 0 on bad argu
 - A corrupted parser state restarts cleanly instead of indexing out of bounds.
 - 200,000 random bytes: no crash, no sanitizer report, and no frame over the
   length limit.
-- 2,000 random frames with random noise between them: every frame comes out
-  intact.
+- 2,000 random frames with random noise without `SOF` between them: every frame
+  comes out intact.
+- Resynchronization bound: 2,000 rounds of noise with `SOF` (half of them
+  ending on a forced false start), then `FRAME_MAX_PAYLOAD + 3` bytes without
+  `SOF`: the next frame always parses.
+- 20,000 frames with noise that includes `SOF`: no frame is ever delivered with
+  the wrong content, and the loss stays under 10% (table above).
+
+The whole suite runs three times, with `FRAME_MAX_PAYLOAD` at 64 (default), 165
+(the first value where `SOF` is also a valid `LEN`) and 255 (the largest `LEN`).
 
 ## Running the tests
 
@@ -117,7 +142,7 @@ In Git Bash, prefix it with `MSYS_NO_PATHCONV=1`.
 
 | Target | What it does |
 | --- | --- |
-| `make test` | builds with ASan + UBSan and runs the tests |
+| `make test` | builds with ASan + UBSan and runs the tests once per payload limit (64, 165, 255) |
 | `make proof` | builds two programs with a deliberate bug each, a heap overflow only ASan sees and a signed overflow only UBSan sees, and fails unless each sanitizer reports its own bug, so neither can be silently turned off |
 | `make analyze` | cppcheck over `src` and `tests` |
 | `make clean` | removes `build/` |
