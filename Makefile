@@ -1,7 +1,7 @@
 # Host tests for the C modules: sanitizers on, warnings as errors.
 #
-#   make test     build with ASan + UBSan and run the tests
-#   make proof    check that the sanitizer is really on (the deliberate bug must be caught)
+#   make test     build with ASan + UBSan and run the tests once per payload limit
+#   make proof    check that each sanitizer is really on (its deliberate bug must be caught)
 #   make analyze  run cppcheck (static analysis)
 #   make clean    remove build/
 #
@@ -21,10 +21,19 @@ CFLAGS  := -std=c11 -g -O1 $(WARN) $(SANIT) -Isrc
 export ASAN_OPTIONS  := abort_on_error=1:detect_leaks=1:strict_string_checks=1:detect_stack_use_after_return=1
 export UBSAN_OPTIONS := print_stacktrace=1:halt_on_error=1
 
+# Payload limits the tests run with: the default, the first value where SOF
+# (0xA5) is also a valid LEN, and the largest LEN a byte can hold.
+LIMITS  := 64 165 255
+
 .PHONY: test proof analyze clean
 
-test: $(BUILD)/test_frame
-	./$(BUILD)/test_frame
+test: $(foreach limit,$(LIMITS),$(BUILD)/max$(limit)/test_frame)
+	@set -e; for limit in $(LIMITS); do ./$(BUILD)/max$$limit/test_frame; done
+
+# One build folder per limit, so each binary is built with its own -D.
+$(BUILD)/max%/test_frame: tests/test_frame.c $(SRC) $(HDR)
+	mkdir -p $(@D)
+	$(CC) $(CFLAGS) -DFRAME_MAX_PAYLOAD=$*U $< $(SRC) -o $@
 
 # Each proof program has one deliberate bug that only one sanitizer catches.
 # It must crash, and with that sanitizer's own report.

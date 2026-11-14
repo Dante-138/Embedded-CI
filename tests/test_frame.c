@@ -33,6 +33,22 @@ static uint8_t random_byte(void)
     return (uint8_t)(rng_state & 0xFFU);
 }
 
+/*
+ * Comparing a uint8_t directly with FRAME_MAX_PAYLOAD is "always true" when the
+ * limit is 255, and -Wtype-limits makes that a build error. Same fix as in
+ * frame.c: compare through a wider parameter.
+ */
+static bool within_limit(unsigned length)
+{
+    return length <= FRAME_MAX_PAYLOAD;
+}
+
+static uint8_t random_non_sof(void)
+{
+    const uint8_t byte = random_byte();
+    return (byte == FRAME_SOF) ? (uint8_t)0x00U : byte;
+}
+
 static void fill_pattern(uint8_t *data, size_t length, uint8_t seed)
 {
     for (size_t i = 0U; i < length; i++) {
@@ -258,7 +274,7 @@ static void test_random_noise(void)
             uint8_t length = 0U;
             const uint8_t *got = frame_parser_payload(&parser, &length);
             CHECK(got != NULL);
-            CHECK(length <= FRAME_MAX_PAYLOAD);
+            CHECK(within_limit(length));
         }
     }
 }
@@ -271,11 +287,7 @@ static void test_frames_survive_noise(void)
     for (unsigned n = 0U; n < 2000U; n++) {
         const uint8_t noise = (uint8_t)(random_byte() % 17U);
         for (uint8_t i = 0U; i < noise; i++) {
-            uint8_t byte = random_byte();
-            if (byte == FRAME_SOF) {
-                byte = 0x00U;
-            }
-            CHECK(frame_parser_feed(&parser, byte) == FRAME_PENDING);
+            CHECK(frame_parser_feed(&parser, random_non_sof()) == FRAME_PENDING);
         }
 
         uint8_t payload[FRAME_MAX_PAYLOAD] = {0};
@@ -291,6 +303,108 @@ static void test_frames_survive_noise(void)
         const uint8_t *got = frame_parser_payload(&parser, &got_length);
         CHECK(got != NULL && got_length == length && memcmp(got, payload, length) == 0);
     }
+}
+
+/* Encodes a random frame into wire; returns its size. */
+static size_t random_frame(uint8_t *payload, uint8_t *length, uint8_t *wire, size_t wire_size)
+{
+    *length = (uint8_t)(random_byte() % (FRAME_MAX_PAYLOAD + 1U));
+    for (uint8_t i = 0U; i < *length; i++) {
+        payload[i] = random_byte();
+    }
+    return frame_encode(payload, *length, wire, wire_size);
+}
+
+/*
+ * Resynchronization bound: whatever state noise (SOF included) leaves the
+ * parser in, at most FRAME_MAX_PAYLOAD + 3 bytes without SOF bring it back to
+ * hunting for SOF. Worst case: it has just taken a false SOF and still reads
+ * LEN, a full payload and two CRC bytes. After that the next frame always parses.
+ */
+static void test_resync_bound_after_noise_with_sof(void)
+{
+    frame_parser_t parser;
+    frame_parser_init(&parser);
+    for (unsigned n = 0U; n < 2000U; n++) {
+        const unsigned noise = random_byte() % 64U;
+        for (unsigned i = 0U; i < noise; i++) {
+            (void)frame_parser_feed(&parser, random_byte());
+        }
+        if ((n % 2U) != 0U) {
+            (void)frame_parser_feed(&parser, FRAME_SOF); /* force a false start */
+        }
+        for (unsigned i = 0U; i < FRAME_MAX_PAYLOAD + 3U; i++) {
+            (void)frame_parser_feed(&parser, random_non_sof());
+        }
+
+        uint8_t payload[FRAME_MAX_PAYLOAD] = {0};
+        uint8_t length = 0U;
+        uint8_t wire[FRAME_BUFFER_SIZE];
+        const size_t size = random_frame(payload, &length, wire, sizeof wire);
+        CHECK(feed_all(&parser, wire, size) == 1U);
+
+        uint8_t got_length = 0U;
+        const uint8_t *got = frame_parser_payload(&parser, &got_length);
+        CHECK(got != NULL && got_length == length && memcmp(got, payload, length) == 0);
+    }
+}
+
+/*
+ * Noise that may contain SOF, with no gap before the next frame. The parser
+ * does not backtrack: a false SOF in the noise can make it read the start of
+ * the next real frame as payload, and that frame is lost. This measures the
+ * loss and checks that a frame is never delivered with the wrong content.
+ */
+static void test_loss_with_sof_in_noise(void)
+{
+    enum { FRAMES = 20000 };
+    unsigned lost = 0U;
+    unsigned streak = 0U;
+    unsigned worst_streak = 0U;
+    unsigned wrong = 0U;
+
+    frame_parser_t parser;
+    frame_parser_init(&parser);
+    for (unsigned n = 0U; n < (unsigned)FRAMES; n++) {
+        const unsigned noise = random_byte() % 17U;
+        for (unsigned i = 0U; i < noise; i++) {
+            if (frame_parser_feed(&parser, random_byte()) == FRAME_READY) {
+                wrong++; /* a frame made of noise only */
+            }
+        }
+
+        uint8_t payload[FRAME_MAX_PAYLOAD] = {0};
+        uint8_t length = 0U;
+        uint8_t wire[FRAME_BUFFER_SIZE];
+        const size_t size = random_frame(payload, &length, wire, sizeof wire);
+        bool received = false;
+        for (size_t i = 0U; i < size; i++) {
+            if (frame_parser_feed(&parser, wire[i]) == FRAME_READY) {
+                uint8_t got_length = 0U;
+                const uint8_t *got = frame_parser_payload(&parser, &got_length);
+                if (got != NULL && got_length == length && memcmp(got, payload, length) == 0) {
+                    received = true;
+                } else {
+                    wrong++;
+                }
+            }
+        }
+
+        if (received) {
+            streak = 0U;
+        } else {
+            lost++;
+            streak++;
+            if (streak > worst_streak) {
+                worst_streak = streak;
+            }
+        }
+    }
+
+    printf("frame: SOF in noise, limit %u: lost %u of %u frames (worst run %u in a row), %u wrong\n",
+           (unsigned)FRAME_MAX_PAYLOAD, lost, (unsigned)FRAMES, worst_streak, wrong);
+    CHECK(wrong == 0U);
+    CHECK(lost * 10U < (unsigned)FRAMES); /* regression guard: under 10% lost */
 }
 
 int main(void)
@@ -309,6 +423,8 @@ int main(void)
     test_corrupted_state_restarts();
     test_random_noise();
     test_frames_survive_noise();
+    test_resync_bound_after_noise_with_sof();
+    test_loss_with_sof_in_noise();
 
     if (failures != 0) {
         fprintf(stderr, "frame: %d check(s) failed\n", failures);
