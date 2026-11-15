@@ -28,7 +28,9 @@ click and long press logic spread over `if`s and timestamps in the main loop.
 - `long_press_ticks = 0` disables long press; `double_click_ticks = 0` disables
   double click and removes the delay on the single click.
 - The button starts as released. If it is held at power-up, the press is
-  accepted after `debounce_ticks` like any other.
+  accepted after `debounce_ticks` like any other, and goes on to a click or a
+  long press. An application that must ignore a button held at boot should
+  discard events until it has seen the button released once.
 
 ## Usage
 
