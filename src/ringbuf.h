@@ -9,7 +9,9 @@
  * That holds while reading and writing a size_t is a single instruction on the
  * target (true for 32-bit MCUs such as Cortex-M and RISC-V). On an 8 or 16-bit
  * MCU, or with more than one producer or more than one consumer, protect the
- * calls with a critical section.
+ * calls with a critical section. Single core only: volatile does not order
+ * memory between cores, so an SMP target needs atomics or a lock. The counts
+ * read from a third context are an estimate.
  *
  * Design rules:
  * - No dynamic allocation: the caller provides the storage.

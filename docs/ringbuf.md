@@ -17,6 +17,10 @@ interrupt fires in the middle of a read.
 - That holds while a `size_t` is read and written in one instruction (32-bit
   MCUs). On 8 or 16-bit MCUs, or with several producers or consumers, wrap the
   calls in a critical section.
+- Single core only: `volatile` does not order memory between cores, so on a
+  multicore (SMP) target the indices need atomics or a lock.
+- `ringbuf_count()` and `ringbuf_space()` are exact for the producer and the
+  consumer. Read from a third context they are only an estimate.
 - The caller provides the storage. A buffer of `size` bytes holds `size - 1`.
 - A full ring rejects the new byte and keeps the old data; `ringbuf_put()`
   returns `false` so the caller can count drops.
