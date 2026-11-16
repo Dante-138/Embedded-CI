@@ -18,6 +18,9 @@ Every module follows the same rules:
 | --- | --- | --- | --- |
 | [`frame`](src/frame.h) | Byte-by-byte parser and encoder for a serial frame: `SOF`, `LEN`, payload, CRC-16 | Lost or misaligned frames on a UART link, and code that needs a flush or reset after line noise | 16 host tests (below) with ASan + UBSan at three payload limits, plus cppcheck |
 
+Every other module has its own page in [docs/](docs/): what it does, the problem it
+solves, how to use it and how it is tested.
+
 ## frame
 
 ### Wire format
