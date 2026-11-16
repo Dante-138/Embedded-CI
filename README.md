@@ -21,6 +21,9 @@ Every module follows the same rules:
 Every other module has its own page in [docs/](docs/): what it does, the problem it
 solves, how to use it and how it is tested.
 
+How the code is written, and why, is in [GUIA-DE-ESTILO.md](GUIA-DE-ESTILO.md) (in
+Portuguese).
+
 ## frame
 
 ### Wire format
@@ -80,26 +83,26 @@ static frame_parser_t parser;
 
 void link_init(void)
 {
-    frame_parser_init(&parser);
+	frame_parser_init(&parser);
 }
 
 /* Call for every byte taken from the UART RX buffer (main loop or task, not the ISR). */
 void link_on_byte(uint8_t byte)
 {
-    switch (frame_parser_feed(&parser, byte)) {
-    case FRAME_READY: {
-        uint8_t length;
-        const uint8_t *payload = frame_parser_payload(&parser, &length);
-        handle_command(payload, length);
-        break;
-    }
-    case FRAME_ERROR_LENGTH:
-    case FRAME_ERROR_CRC:
-        link_errors++; /* the parser has already resynchronized */
-        break;
-    default:
-        break;
-    }
+	switch (frame_parser_feed(&parser, byte)) {
+	case FRAME_READY: {
+		uint8_t length;
+		const uint8_t *payload = frame_parser_payload(&parser, &length);
+		handle_command(payload, length);
+		break;
+	}
+	case FRAME_ERROR_LENGTH:
+	case FRAME_ERROR_CRC:
+		link_errors++; /* the parser has already resynchronized */
+		break;
+	default:
+		break;
+	}
 }
 
 /* Sending: */
@@ -156,13 +159,15 @@ In Git Bash, prefix it with `MSYS_NO_PATHCONV=1`.
 | `make test` | builds with ASan + UBSan and runs the tests once per payload limit (64, 165, 255) |
 | `make proof` | builds two programs with a deliberate bug each, a heap overflow only ASan sees and a signed overflow only UBSan sees, and fails unless each sanitizer reports its own bug, so neither can be silently turned off |
 | `make analyze` | cppcheck over `src` and `tests` |
+| `make format` | rewrites the sources with clang-format, using [`.clang-format`](.clang-format) |
+| `make format-check` | fails if a source is not formatted |
 | `make clean` | removes `build/` |
 
 ## CI
 
 | Workflow | Check | What it runs |
 | --- | --- | --- |
-| [`ci.yml`](.github/workflows/ci.yml) | Host tests | `make test`, `make proof` and `make analyze` in `gcc:14`, pinned by digest |
+| [`ci.yml`](.github/workflows/ci.yml) | Host tests | `make test`, `make proof`, `make analyze` and `make format-check` in `gcc:14`, pinned by digest |
 | [`pr.yml`](.github/workflows/pr.yml) | PR text | [`tools/check-commits.ts`](tools/check-commits.ts): Conventional Commits, subject up to 72 characters, no co-author lines, no e-mail addresses, PR targets `main` |
 
 Actions are pinned by commit SHA and the workflow token is read-only.
