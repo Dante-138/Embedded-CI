@@ -36,22 +36,22 @@ static uint32_t rx_dropped;
 
 void uart_init(void)
 {
-    (void)ringbuf_init(&rx_ring, rx_storage, sizeof rx_storage);
+	(void)ringbuf_init(&rx_ring, rx_storage, sizeof rx_storage);
 }
 
 void uart_rx_isr(uint8_t byte) /* producer */
 {
-    if (!ringbuf_put(&rx_ring, byte)) {
-        rx_dropped++;
-    }
+	if (!ringbuf_put(&rx_ring, byte)) {
+		rx_dropped++;
+	}
 }
 
 void main_loop_step(void) /* consumer */
 {
-    uint8_t byte;
-    while (ringbuf_get(&rx_ring, &byte)) {
-        handle_byte(byte);
-    }
+	uint8_t byte;
+	while (ringbuf_get(&rx_ring, &byte)) {
+		handle_byte(byte);
+	}
 }
 ```
 
@@ -60,7 +60,7 @@ void main_loop_step(void) /* consumer */
 Run with ASan + UBSan; the storage is a heap block of the exact size, so one
 byte outside it aborts the run.
 
-- `ringbuf_init()` rejects `NULL` and sizes below 2.
+- `ringbuf_init()` returns `-EINVAL` for `NULL` and sizes below 2.
 - `NULL`, a zeroed (not yet initialized) ring and `NULL` data pointers are
   safe: nothing is read, written or consumed.
 - FIFO order, a full ring rejects the new byte, an empty ring leaves the output

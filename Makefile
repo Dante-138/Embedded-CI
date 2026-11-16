@@ -3,6 +3,8 @@
 #   make test     build with ASan + UBSan and run the tests once per payload limit
 #   make proof    check that each sanitizer is really on (its deliberate bug must be caught)
 #   make analyze  run cppcheck (static analysis)
+#   make format   rewrite the sources with clang-format (.clang-format)
+#   make format-check  fail if a source is not formatted
 #   make clean    remove build/
 #
 # On Windows, run it inside the same container as CI (see README.md).
@@ -13,7 +15,8 @@ SRC     := src/frame.c
 HDR     := src/frame.h
 
 WARN    := -Wall -Wextra -Werror -Wpedantic -Wshadow -Wconversion -Wsign-conversion \
-           -Wcast-qual -Wformat=2 -Wnull-dereference -Wdouble-promotion -Wstrict-prototypes
+           -Wcast-qual -Wformat=2 -Wnull-dereference -Wdouble-promotion -Wstrict-prototypes \
+           -Wmissing-prototypes -Wundef -Wcast-align -Wfloat-equal -Wvla -fno-common
 SANIT   := -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer
 CFLAGS  := -std=c11 -g -O1 $(WARN) $(SANIT) -Isrc
 
@@ -25,7 +28,7 @@ export UBSAN_OPTIONS := print_stacktrace=1:halt_on_error=1
 # (0xA5) is also a valid LEN, and the largest LEN a byte can hold.
 LIMITS  := 64 165 255
 
-.PHONY: test proof analyze clean
+.PHONY: test proof analyze format format-check clean
 
 # Every other module is one src/<name>.c + src/<name>.h + tests/test_<name>.c
 # and is picked up here by itself: adding a module needs no change to this file.
@@ -69,6 +72,12 @@ $(BUILD)/%: tests/%.c $(SRC) $(HDR) | $(BUILD)
 
 $(BUILD):
 	mkdir -p $(BUILD)
+
+format:
+	clang-format -i src/*.c src/*.h tests/*.c
+
+format-check:
+	clang-format --dry-run --Werror src/*.c src/*.h tests/*.c
 
 clean:
 	rm -rf $(BUILD)

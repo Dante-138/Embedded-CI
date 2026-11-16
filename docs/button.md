@@ -41,31 +41,31 @@ static button_t user_button;
 
 void buttons_init(void)
 {
-    /* With a 10 ms tick: 30 ms debounce, 1 s long press, 300 ms double click gap. */
-    const button_config_t config = {
-        .debounce_ticks = 3,
-        .long_press_ticks = 100,
-        .double_click_ticks = 30,
-    };
-    (void)button_init(&user_button, &config);
+	/* With a 10 ms tick: 30 ms debounce, 1 s long press, 300 ms double click gap. */
+	const button_config_t config = {
+		.debounce_ticks = 3,
+		.long_press_ticks = 100,
+		.double_click_ticks = 30,
+	};
+	(void)button_init(&user_button, &config);
 }
 
 void on_10ms_tick(void)
 {
-    const bool pressed = (gpio_read(BUTTON_PIN) == 0); /* active low */
-    switch (button_update(&user_button, pressed)) {
-    case BUTTON_EVENT_CLICK:
-        toggle_led();
-        break;
-    case BUTTON_EVENT_DOUBLE_CLICK:
-        next_mode();
-        break;
-    case BUTTON_EVENT_LONG_PRESS:
-        start_pairing();
-        break;
-    default:
-        break;
-    }
+	const bool pressed = (gpio_read(BUTTON_PIN) == 0); /* active low */
+	switch (button_update(&user_button, pressed)) {
+	case BUTTON_EVENT_CLICK:
+		toggle_led();
+		break;
+	case BUTTON_EVENT_DOUBLE_CLICK:
+		next_mode();
+		break;
+	case BUTTON_EVENT_LONG_PRESS:
+		start_pairing();
+		break;
+	default:
+		break;
+	}
 }
 ```
 
@@ -74,7 +74,7 @@ void on_10ms_tick(void)
 Run with ASan + UBSan. Time is simulated (one call is one tick), so the timing
 rules are checked to the exact tick.
 
-- `button_init()` rejects `NULL` and `debounce_ticks = 0`; `NULL` and a zeroed
+- `button_init()` returns `-EINVAL` for `NULL` and `debounce_ticks = 0`; `NULL` and a zeroed
   button are safe.
 - Debounce accepts press and release on the exact tick, one sample short does
   nothing.

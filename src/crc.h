@@ -27,6 +27,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Start value for crc16_ccitt_false() and crc16_modbus(). */
 #define CRC16_INIT 0xFFFFU
 
@@ -41,5 +45,9 @@ uint16_t crc16_modbus(uint16_t crc, const uint8_t *data, size_t length);
 
 /* CRC-32 (Ethernet, zip, PNG). First call: crc = CRC32_INIT. */
 uint32_t crc32_ieee(uint32_t crc, const uint8_t *data, size_t length);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* CRC_H */

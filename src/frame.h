@@ -42,41 +42,45 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Largest payload accepted. Override at build time with -DFRAME_MAX_PAYLOAD=n. */
 #ifndef FRAME_MAX_PAYLOAD
 #define FRAME_MAX_PAYLOAD 64U
 #endif
 
-#define FRAME_SOF        0xA5U
-#define FRAME_OVERHEAD   4U /* SOF + LEN + CRC_HI + CRC_LO */
+#define FRAME_SOF	 0xA5U
+#define FRAME_OVERHEAD	 4U /* SOF + LEN + CRC_HI + CRC_LO */
 #define FRAME_CRC16_INIT 0xFFFFU
 
 _Static_assert(FRAME_MAX_PAYLOAD >= 1U && FRAME_MAX_PAYLOAD <= 255U, "LEN is a single byte");
 
-typedef enum {
-    FRAME_PENDING = 0,  /* byte consumed, no complete frame yet */
-    FRAME_READY,        /* a valid frame is available from frame_parser_payload() */
-    FRAME_ERROR_LENGTH, /* LEN above FRAME_MAX_PAYLOAD: frame dropped, hunting for SOF */
-    FRAME_ERROR_CRC     /* CRC mismatch: frame dropped, hunting for SOF */
+typedef enum frame_status {
+	FRAME_PENDING = 0,  /* byte consumed, no complete frame yet */
+	FRAME_READY,	    /* a valid frame is available from frame_parser_payload() */
+	FRAME_ERROR_LENGTH, /* LEN above FRAME_MAX_PAYLOAD: frame dropped, hunting for SOF */
+	FRAME_ERROR_CRC	    /* CRC mismatch: frame dropped, hunting for SOF */
 } frame_status_t;
 
 /* Internal states. Public only so the parser can be allocated by the caller. */
-typedef enum {
-    FRAME_STATE_SOF = 0,
-    FRAME_STATE_LENGTH,
-    FRAME_STATE_PAYLOAD,
-    FRAME_STATE_CRC_HIGH,
-    FRAME_STATE_CRC_LOW
+typedef enum frame_state {
+	FRAME_STATE_SOF = 0,
+	FRAME_STATE_LENGTH,
+	FRAME_STATE_PAYLOAD,
+	FRAME_STATE_CRC_HIGH,
+	FRAME_STATE_CRC_LOW
 } frame_state_t;
 
 /* Treat the fields as private: use the functions below. */
-typedef struct {
-    frame_state_t state;
-    uint8_t length;   /* LEN of the frame being received */
-    uint8_t received; /* payload bytes stored so far */
-    uint16_t crc_wire; /* high byte of the CRC read from the wire */
-    bool ready;       /* true only right after feed() returned FRAME_READY */
-    uint8_t payload[FRAME_MAX_PAYLOAD];
+typedef struct frame_parser {
+	frame_state_t state;
+	uint8_t length;	   /* LEN of the frame being received */
+	uint8_t received;  /* payload bytes stored so far */
+	uint16_t crc_wire; /* high byte of the CRC read from the wire */
+	bool ready;	   /* true only right after feed() returned FRAME_READY */
+	uint8_t payload[FRAME_MAX_PAYLOAD];
 } frame_parser_t;
 
 /* Puts the parser in its initial state. Also the way to drop a partial frame. */
@@ -105,5 +109,9 @@ size_t frame_encode(const uint8_t *payload, uint8_t length, uint8_t *out, size_t
  * back in to continue over more data.
  */
 uint16_t frame_crc16(uint16_t crc, const uint8_t *data, size_t length);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* FRAME_H */

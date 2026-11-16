@@ -31,8 +31,11 @@ jobs:
       - name: Proof that the sanitizer is on
         run: make proof
 
-      - name: Install cppcheck
-        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends cppcheck
+      - name: Install cppcheck and clang-format
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends cppcheck clang-format
 
       - name: Static analysis (cppcheck)
         run: make analyze
+
+      - name: Formatting (clang-format)
+        run: make format-check

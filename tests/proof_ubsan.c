@@ -12,9 +12,9 @@
 
 int main(int argc, char **argv)
 {
-    (void)argv;
-    /* argc is 1, so this is INT_MAX + 1; the compiler cannot see that. */
-    const int overflow = INT_MAX - 1 + argc + 1;
-    printf("%d\n", overflow);
-    return EXIT_SUCCESS;
+	(void)argv;
+	/* argc is 1, so this is INT_MAX + 1; the compiler cannot see that. */
+	const int overflow = INT_MAX - 1 + argc + 1;
+	printf("%d\n", overflow);
+	return EXIT_SUCCESS;
 }

@@ -36,42 +36,46 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef enum {
-    BUTTON_EVENT_NONE = 0,
-    BUTTON_EVENT_CLICK,
-    BUTTON_EVENT_DOUBLE_CLICK,
-    BUTTON_EVENT_LONG_PRESS
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef enum button_event {
+	BUTTON_EVENT_NONE = 0,
+	BUTTON_EVENT_CLICK,
+	BUTTON_EVENT_DOUBLE_CLICK,
+	BUTTON_EVENT_LONG_PRESS
 } button_event_t;
 
-typedef struct {
-    uint16_t debounce_ticks;     /* >= 1: consecutive samples needed to accept a level */
-    uint16_t long_press_ticks;   /* hold time for LONG_PRESS; 0 disables it */
-    uint16_t double_click_ticks; /* max gap between two clicks; 0 disables double click */
+typedef struct button_config {
+	uint16_t debounce_ticks;     /* >= 1: consecutive samples needed to accept a level */
+	uint16_t long_press_ticks;   /* hold time for LONG_PRESS; 0 disables it */
+	uint16_t double_click_ticks; /* max gap between two clicks; 0 disables double click */
 } button_config_t;
 
 /* Internal states. Public only so the button can be allocated by the caller. */
-typedef enum {
-    BUTTON_STATE_IDLE = 0,
-    BUTTON_STATE_PRESSED,
-    BUTTON_STATE_HELD,
-    BUTTON_STATE_WAIT_SECOND,
-    BUTTON_STATE_SECOND_PRESSED
+typedef enum button_state {
+	BUTTON_STATE_IDLE = 0,
+	BUTTON_STATE_PRESSED,
+	BUTTON_STATE_HELD,
+	BUTTON_STATE_WAIT_SECOND,
+	BUTTON_STATE_SECOND_PRESSED
 } button_state_t;
 
 /* Treat the fields as private: use the functions below. */
-typedef struct {
-    button_config_t config;
-    button_state_t state;
-    bool pressed;     /* debounced level */
-    uint16_t counter; /* consecutive samples that differ from `pressed` */
-    uint16_t timer;   /* ticks spent in the current timed state */
+typedef struct button {
+	button_config_t config;
+	button_state_t state;
+	bool pressed;	  /* debounced level */
+	uint16_t counter; /* consecutive samples that differ from `pressed` */
+	uint16_t timer;	  /* ticks spent in the current timed state */
 } button_t;
 
 /*
- * Starts in the released state. Returns false if an argument is NULL or
- * debounce_ticks is 0. The config is copied.
+ * Starts in the released state. Returns 0, or -EINVAL if an argument is NULL
+ * or debounce_ticks is 0. The config is copied.
  */
-bool button_init(button_t *button, const button_config_t *config);
+int button_init(button_t *button, const button_config_t *config);
 
 /*
  * Feeds one sample (true = pressed) and returns the event it completed.
@@ -81,5 +85,9 @@ button_event_t button_update(button_t *button, bool raw_pressed);
 
 /* Debounced level: true while the button is accepted as pressed. */
 bool button_is_pressed(const button_t *button);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* BUTTON_H */

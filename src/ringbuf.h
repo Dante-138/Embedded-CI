@@ -27,16 +27,20 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Treat the fields as private: use the functions below. */
-typedef struct {
-    uint8_t *data;
-    size_t size;          /* storage size; capacity is size - 1 */
-    volatile size_t head; /* next write position, written only by the producer */
-    volatile size_t tail; /* next read position, written only by the consumer */
+typedef struct ringbuf {
+	uint8_t *data;
+	size_t size;	      /* storage size; capacity is size - 1 */
+	volatile size_t head; /* next write position, written only by the producer */
+	volatile size_t tail; /* next read position, written only by the consumer */
 } ringbuf_t;
 
-/* Binds the ring to its storage. Returns false if storage is NULL or size < 2. */
-bool ringbuf_init(ringbuf_t *ring, uint8_t *storage, size_t size);
+/* Binds the ring to its storage. Returns 0, or -EINVAL if storage is NULL or size < 2. */
+int ringbuf_init(ringbuf_t *ring, uint8_t *storage, size_t size);
 
 /* Producer side. Returns false (byte dropped) when the ring is full. */
 bool ringbuf_put(ringbuf_t *ring, uint8_t byte);
@@ -58,5 +62,9 @@ size_t ringbuf_space(const ringbuf_t *ring);
 
 /* Largest number of bytes the ring can hold (size - 1). */
 size_t ringbuf_capacity(const ringbuf_t *ring);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* RINGBUF_H */
